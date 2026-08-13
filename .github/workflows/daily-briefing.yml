@@ -40,10 +40,11 @@ jobs:
       LANGSMITH_PROJECT: news-market-agent
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: uv 설치
-        uses: astral-sh/setup-uv@v5
+        # v10 은 이동형 major 태그(v10)를 안 만들어서 정확한 버전을 박는다
+        uses: astral-sh/setup-uv@v10.0.0
         with:
           enable-cache: true
 
