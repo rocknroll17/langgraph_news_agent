@@ -125,12 +125,32 @@ GitHub 러너가 그때만 켜져서 실행되고 끝나면 사라진다. 상시
 브리핑은 `reports/` 에 커밋된다. 러너는 매번 새 머신이라,
 다음 실행의 planner 가 어제 것을 읽으려면 저장소에 남아야 하기 때문이다.
 
-저장소 **Settings → Secrets and variables → Actions** 에 등록할 값:
+### 환경
+
+| 환경 | 언제 | 보내는 채널 | reports/ 커밋 |
+|---|---|---|---|
+| `prod` | 스케줄 실행 (매일 10:00 KST) | 운영 채널 | ○ |
+| `dev` | 수동 실행 기본값 | 시험 채널 | ✕ |
+
+`dev` 는 `DISCORD_WEBHOOK_URL` 만 따로 갖고 나머지는 저장소 값을 그대로 쓴다.
+시험 삼아 돌린 결과가 운영 채널에 가거나 저장소에 커밋되지 않는다.
+
+수동 실행은 **Actions → 시장 브리핑 → Run workflow** 에서 환경을 고른다.
+
+### 등록할 값
+
+저장소 **Settings → Secrets and variables → Actions**
 
 | 종류 | 이름 |
 |---|---|
-| Variables | `OPENAI_BASE_URL`, `LOCAL_MODEL` |
+| Variables | `OPENAI_BASE_URL`, `LOCAL_MODEL`, `LANGSMITH_PROJECT` |
 | Secrets | `OPENAI_API_KEY`, `TAVILY_API_KEY`, `DISCORD_WEBHOOK_URL`, `LANGSMITH_API_KEY` |
+
+**Settings → Environments → dev**
+
+| 종류 | 이름 |
+|---|---|
+| Secrets | `DISCORD_WEBHOOK_URL` (시험 채널) |
 
 ---
 

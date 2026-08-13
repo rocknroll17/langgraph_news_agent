@@ -5,6 +5,12 @@ on:
     # UTC 기준. 01:00 UTC = 한국 시간 10:00
     - cron: "0 1 * * *"
   workflow_dispatch:        # Actions 탭에서 수동 실행
+    inputs:
+      environment:
+        description: 어느 채널로 보낼지
+        type: choice
+        options: [dev, prod]
+        default: dev
 
 permissions:
   contents: write        # reports/ 를 저장소에 되커밋하려면 필요
@@ -17,6 +23,10 @@ jobs:
   briefing:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
+    # 스케줄 실행은 prod, 수동 실행은 고른 값.
+    # dev 환경은 DISCORD_WEBHOOK_URL 만 따로 갖고, 나머지는 저장소 값을 그대로 쓴다.
+    environment: ${{ inputs.environment || 'prod' }}
 
     env:
       # LLM: 집에 있는 llama.cpp 를 Cloudflare Tunnel 로 노출한 것
@@ -51,6 +61,8 @@ jobs:
       - name: 브리핑 커밋
         # 러너는 매번 새 머신이라 reports/ 가 사라진다.
         # 다음 실행의 planner 가 어제 브리핑을 읽으려면 저장소에 남아야 한다.
+        # dev 는 시험 삼아 도는 것이라 저장소를 건드리지 않는다.
+        if: ${{ (inputs.environment || 'prod') == 'prod' }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
