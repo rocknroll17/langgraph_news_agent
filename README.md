@@ -1,7 +1,7 @@
-<h1 align="center">시장 브리핑 에이전트</h1>
+<h1 align="center">Market Briefing Agent</h1>
 
 <p align="center">
-  증시 뉴스를 검색해 브리핑으로 정리하고, 근거 없는 문장을 걸러낸 뒤 디스코드로 보냅니다.
+  Searches market news, drafts a briefing, strips out unsupported claims, and posts it to Discord.
 </p>
 
 <p align="center">
@@ -13,43 +13,43 @@
 
 ---
 
-## 결과물
+## Output
 
-> ### 오늘 한눈에
-> 미국 증시는 AI 관련 기술주가 오르면서 상승 마감했습니다. 7월 소비자물가지수가 예상보다 낮게 나와 연준이 금리를 동결할 거라는 전망이 늘었습니다.
+> ### Today at a glance
+> US equities closed higher as AI-related tech stocks rallied. July CPI came in below expectations, strengthening expectations that the Fed will hold rates steady.
 >
-> ### 미국 증시
-> S&P 500은 0.3% 올라 7,748.50에 마감했고, 나스닥 종합지수도 0.54% 오른 26,588.49를 기록했습니다([Zacks](https://example.com), [Reuters](https://example.com)). 다만 다우존스 산업평균지수는 0.06% 내린 53,762.05로 마감해 지수마다 방향이 달랐습니다([TS2](https://example.com)).
+> ### US markets
+> The S&P 500 rose 0.3% to close at 7,748.50, and the Nasdaq Composite gained 0.54% to 26,588.49 ([Zacks](https://example.com), [Reuters](https://example.com)). The Dow Jones Industrial Average, however, slipped 0.06% to 53,762.05, leaving the major indices split ([TS2](https://example.com)).
 
-문장마다 달린 인용은 LLM이 임의로 붙인 것이 아닙니다. 검색 원문과 대조해 근거가 확인된 문장에만 삽입됩니다.
+The citations are not something the LLM attached on its own. They are inserted only into sentences whose claims were matched against the retrieved source text.
 
-## 빠른 시작
+## Quick start
 
 ```bash
 git clone https://github.com/rocknroll17/langgraph_news_agent.git
 cd langgraph_news_agent
-cp .env.example .env      # 키 채우기
+cp .env.example .env      # fill in your keys
 uv sync
 uv run python main.py
 ```
 
-LLM은 OpenAI 호환 엔드포인트면 무엇이든 됩니다. `.env`의 `OPENAI_BASE_URL`만 바꾸면 됩니다.
+Any OpenAI-compatible endpoint works. Point `OPENAI_BASE_URL` in `.env` at whatever you use.
 
-`TRACE=1`을 붙이면 노드별로 어떤 프롬프트가 오갔는지 터미널에 찍힙니다.
+Set `TRACE=1` to print, per node, the prompts that went in and the responses that came back.
 
 ---
 
-## 왜 노드를 나눴나
+## Why split it into nodes
 
-"검색 결과 읽고 브리핑 써줘"를 한 번에 시키면 잘 안 됩니다. 검색 원문 4~6건이 컨텍스트를 수만 토큰씩 차지한 상태에서 요약과 작문을 동시에 시키면, 원문 뒷부분을 흘리고 숫자를 틀리고 검색에 없던 내용을 만들어냅니다. 전형적인 **할루시네이션**이고, 모델이 작을수록 심합니다.
+Asking a model to "read these search results and write a briefing" in one shot does not work. With four to six raw articles filling tens of thousands of tokens, summarizing and writing at the same time makes it skim the tail of the source, misreport figures, and invent facts that were never retrieved. That is textbook **hallucination**, and it gets worse as the model gets smaller.
 
-그래서 **한 노드가 한 가지 일만** 하게 나눴습니다.
+So each node does exactly one thing.
 
 ```mermaid
 flowchart LR
-    P[planner] -->|검색 충분| S[search]
-    P -.->|검색 부족 · 재시도| P
-    P -.->|끝내 못 구함| SY
+    P[planner] -->|enough queries| S[search]
+    P -.->|too few · retry| P
+    P -.->|gave up| SY
     S --> SY[synthesizer]
     SY --> W[writer]
     W --> C[checker]
@@ -59,96 +59,96 @@ flowchart LR
     CL --> E([END])
 ```
 
-| 노드 | 하는 일 | LLM |
+| Node | Responsibility | LLM |
 |:--|:--|:-:|
-| `planner` | 검색어를 한 번에 4~6개 만듭니다. 답은 쓰지 않습니다 | ● |
-| `search` | `ToolNode`로 검색 tool_call을 병렬 팬아웃합니다 | |
-| `synthesizer` | 원문에서 클레임을 추출하고 클레임 간 인과·대조를 표시합니다 | ● |
-| `writer` | 추출된 클레임만으로 작문합니다. 검색 원문은 보지 않습니다 | ● |
-| `checker` | 클레임을 원문 근거와 대조해 판정만 합니다 | ● |
-| `reviser` | 판정에 따라 최소 편집으로 고치고 인용을 삽입합니다 | ● |
-| `reporter` | 파일로 저장하고 디스코드로 보냅니다 | |
-| `cleaner` | `RemoveMessage`로 상태를 비웁니다 | |
+| `planner` | Emits 4–6 search queries in a single turn. Writes no prose | ● |
+| `search` | Fans the tool calls out in parallel via `ToolNode` | |
+| `synthesizer` | Extracts claims from raw results and tags causal / contrastive links | ● |
+| `writer` | Drafts prose from the extracted claims only. Never sees raw results | ● |
+| `checker` | Matches each claim against the source index. Judges only | ● |
+| `reviser` | Applies minimal edits per verdict and inserts citations | ● |
+| `reporter` | Saves to file and posts to Discord | |
+| `cleaner` | Clears state with `RemoveMessage` | |
 
-검색 원문을 직접 보는 노드는 `synthesizer` 하나뿐입니다. 뒷단으로 갈수록 컨텍스트가 가벼워집니다.
+`synthesizer` is the only node that reads raw search output. Everything downstream runs on a lighter context.
 
 ---
 
-## 그라운딩 검증
+## Grounding verification
 
-`writer`가 쓴 글을 `checker`가 **클레임 단위로 분해**해 검색 원문 색인과 대조합니다. 판정은 NLI 방식의 3분류이고, Pydantic 스키마를 건 구조화 출력으로 받습니다.
+`checker` **decomposes** the draft into individual claims and matches each one against an index built from the retrieved sources. Verdicts follow the three-way NLI convention and come back through a Pydantic-typed structured output.
 
-| 판정 | 의미 | `reviser`의 처리 |
+| Verdict | Meaning | What `reviser` does |
 |:--|:--|:--|
-| `SUPPORTED` | 원문이 그대로 뒷받침함 | 인용 삽입 |
-| `CONTRADICTED` | 원문에 다른 값이 적혀 있음 | 해당 수치만 교체 후 인용 |
-| `NOT_ENOUGH_INFO` | 원문에 근거가 없음 | 인용 없이 그대로 둠 |
+| `SUPPORTED` | The source backs the claim as written | Insert citation |
+| `CONTRADICTED` | The source states a different value | Replace the figure, then cite |
+| `NOT_ENOUGH_INFO` | No supporting evidence in the index | Leave as is, no citation |
 
 ```
-[checker] 주장 16건 — 근거있음 9 / 어긋남 1 / 근거없음 6
-   ✗ 다우존스 0.04% 하락 53,770.27  →  색인값: 0.06% 하락 53,762.05
-   ✗ 상하이 종합지수 0.50% 하락      →  색인값: 0.32% 상승
+[checker] 16 claims — supported 9 / contradicted 1 / unsupported 6
+   ✗ Dow down 0.04% at 53,770.27  →  index says: down 0.06% at 53,762.05
+   ✗ Shanghai Composite down 0.50%  →  index says: up 0.32%
 ```
 
-판정과 교정을 나눈 이유는 한 번에 둘 다 시키면 양쪽 다 품질이 떨어지기 때문입니다. **클레임 분해 → 근거 인용 후 판정 → 최소 편집** 순서를 따릅니다.
+Judging and revising are split because doing both in one call degrades both. The order is **decompose → quote evidence, then judge → minimal edit**.
 
-_근거를 판정보다 먼저 쓰게 한 이유:_ 순서가 반대면 모델이 이미 내린 결론에 맞춰 근거를 지어냅니다.
+_Why evidence comes before the verdict:_ reverse the order and the model fabricates evidence to fit the conclusion it already reached.
 
 ---
 
-## 설계 결정
+## Design decisions
 
-### 가드레일은 프롬프트가 아니라 코드에
+### Guardrails belong in code, not in the prompt
 
-| 문제 | 처리 |
+| Problem | Handling |
 |:--|:--|
-| "최대 6회"라고 써도 더 부릅니다 | `tool_calls[:MAX_CALLS]`로 자릅니다 |
-| 오래된 기사를 오늘 것처럼 씁니다 | Tavily `time_range="day"`로 고정합니다 |
-| 모델이 `start_date`를 넣어 API가 400을 뱉습니다 | `query`만 받는 도구로 감쌉니다 |
-| 출처 URL을 빠뜨리거나 바꿔 씁니다 | 검증 색인을 코드에서 만들어 주입합니다 |
-| "없음"만 적힌 빈 섹션을 만듭니다 | 보내기 직전에 제목까지 지웁니다 |
+| It exceeds "at most 6 calls" no matter what the prompt says | Truncate with `tool_calls[:MAX_CALLS]` |
+| It cites stale articles as if they were today's | Pin Tavily to `time_range="day"` |
+| It fills in `start_date` and the API returns 400 | Wrap the tool so it only accepts `query` |
+| It drops or rewrites source URLs | Build the verification index in code and inject it |
+| It emits empty sections containing only "none" | Strip the heading itself right before sending |
 
-### 데이터는 시스템 프롬프트에 넣지 않는다
+### Data does not go into the system prompt
 
-시스템 메시지에는 역할과 규칙만 넣고, 실제 데이터는 `HumanMessage`로 줍니다.
+The system message carries role and rules only; the actual data arrives as a `HumanMessage`.
 
-_이유:_ 데이터를 시스템 프롬프트에 넣으면 모델이 그걸 few-shot 예시 자리로 해석해 "자료를 주세요"라고 되묻습니다.
+_Why:_ data placed inside a system prompt gets read as a few-shot example slot, and the model replies asking you to provide the material.
 
-### 어제 브리핑을 참고 자료로 붙인다
+### Yesterday's briefing is attached as reference
 
-`reports/`에 쌓인 어제 브리핑을 `planner`에 `HumanMessage`로 붙입니다. 어제 다룬 이슈는 그 뒤 어떻게 됐는지 찾고, 어제 못 구한 항목은 다시 찾습니다.
+The previous briefing in `reports/` is attached to `planner` as a `HumanMessage`. Topics already covered get followed up on, and items that could not be confirmed get another pass.
 
-_`AIMessage`가 아닌 이유:_ 모델이 자기가 이미 답한 것으로 알고 검색을 건너뜁니다.
+_Why not `AIMessage`:_ the model treats it as its own prior answer and skips the search step.
 
 ---
 
-## 자동 실행
+## Scheduled runs
 
-`.github/workflows/daily-briefing.yml`이 매일 10시(KST)에 돕니다. GitHub 러너가 그때만 켜졌다 꺼지니 서버를 따로 띄우지 않습니다. 만든 브리핑은 `reports/`에 커밋해, 다음 회차의 `planner`가 읽습니다.
+`.github/workflows/daily-briefing.yml` runs daily at 10:00 KST. The GitHub runner spins up only for that window, so nothing needs to stay online. Each briefing is committed to `reports/`, where the next run's `planner` picks it up.
 
-| 환경 | 트리거 | 채널 | `reports/` 커밋 |
+| Environment | Trigger | Channel | Commits to `reports/` |
 |:--|:--|:--|:-:|
-| `prod` | 스케줄 (매일 10시 KST) | 운영 | ● |
-| `dev` | 수동 실행 기본값 | 시험 | ○ |
+| `prod` | Schedule (daily, 10:00 KST) | Production | ● |
+| `dev` | Default for manual runs | Staging | ○ |
 
-`dev`는 `DISCORD_WEBHOOK_URL`만 따로 갖고 나머지는 저장소 값을 씁니다. 시험 실행이 운영 채널로 나가거나 저장소에 커밋되지 않습니다.
+`dev` overrides only `DISCORD_WEBHOOK_URL` and inherits everything else from the repository. Test runs never reach the production channel or touch the repository.
 
-저장소 Variables에 `OPENAI_BASE_URL`·`LOCAL_MODEL`·`LANGSMITH_PROJECT`, Secrets에 `OPENAI_API_KEY`·`TAVILY_API_KEY`·`DISCORD_WEBHOOK_URL`·`LANGSMITH_API_KEY`를 등록합니다. `dev` 환경에는 `DISCORD_WEBHOOK_URL`만 별도로 넣습니다.
+Register `OPENAI_BASE_URL`, `LOCAL_MODEL`, and `LANGSMITH_PROJECT` as repository Variables, and `OPENAI_API_KEY`, `TAVILY_API_KEY`, `DISCORD_WEBHOOK_URL`, `LANGSMITH_API_KEY` as Secrets. The `dev` environment needs `DISCORD_WEBHOOK_URL` on its own.
 
 ---
 
-## 프로젝트 구조
+## Layout
 
 ```
-main.py              그래프 조립
-config.py            모델·도구·상수
-state.py             그래프 상태와 리듀서
-nodes/<노드>/         node.py (로직) + prompts.py (ChatPromptTemplate)
-utils/               파일 입출력, 디스코드 발송, 인용 색인, 트레이스
+main.py              graph assembly
+config.py            model, tools, constants
+state.py             graph state and reducers
+nodes/<node>/        node.py (logic) + prompts.py (ChatPromptTemplate)
+utils/               file I/O, Discord delivery, citation index, tracing
 ```
 
-프롬프트 조립용 빌더는 따로 만들지 않았습니다. LangChain의 `ChatPromptTemplate`이 그 역할을 합니다. 노드 폴더는 문구와 템플릿 정의만 갖고, 변수 치환과 모델 연결은 `template | model`이 처리합니다.
+There is no hand-rolled prompt builder. LangChain's `ChatPromptTemplate` fills that role: each node package holds only its wording and template, while variable substitution and model binding happen through `template | model`.
 
-## 라이선스
+## License
 
 [MIT](LICENSE)
