@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 환경 변수 — 실제 키가 들어간다
+.env
+
+# 로그
+logs/

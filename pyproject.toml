@@ -1,0 +1,15 @@
+[project]
+name = "news-market-agent"
+version = "0.1.0"
+description = "시장 뉴스를 검색·검증해 브리핑으로 만들어 디스코드로 보내는 LangGraph 에이전트"
+requires-python = ">=3.11"
+license = "MIT"
+readme = "README.md"
+dependencies = [
+    "langgraph",
+    "langchain-core",
+    "langchain-openai",
+    "langchain-tavily",
+    "python-dotenv",
+    "requests",
+]
