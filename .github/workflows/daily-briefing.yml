@@ -29,7 +29,6 @@ jobs:
     environment: ${{ inputs.environment || 'prod' }}
 
     env:
-      # LLM: 집에 있는 llama.cpp 를 Cloudflare Tunnel 로 노출한 것
       OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       LOCAL_MODEL: ${{ vars.LOCAL_MODEL }}
@@ -49,7 +48,7 @@ jobs:
           enable-cache: true
 
       - name: LLM 서버 확인
-        # 집 PC 가 꺼져 있으면 여기서 멈춘다. 30분 뒤 타임아웃보다 낫다.
+        # 엔드포인트가 죽어 있으면 여기서 멈춘다. 30분 뒤 타임아웃보다 낫다.
         run: |
           curl -sf -m 30 -o /dev/null \
             -H "Authorization: Bearer $OPENAI_API_KEY" \

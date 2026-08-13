@@ -19,10 +19,10 @@ load_dotenv(ROOT / ".env")
 
 # ── 모델 ────────────────────────────────────────────────
 # base_url 과 api_key 는 .env(OPENAI_BASE_URL / OPENAI_API_KEY)에서 자동으로 읽힌다.
-# 모델 ID 만 명시한다 — LangSmith 트레이스에 gemma4 로 찍히게 하기 위함.
+# 모델 ID 만 명시한다 — LangSmith 트레이스에 실제 모델명이 남게 하기 위함.
 def build_model(temperature: float = 0.0) -> ChatOpenAI:
     return ChatOpenAI(
-        model=os.environ.get("LOCAL_MODEL", "/models/gemma4-e4b.gguf"),
+        model=os.environ["LOCAL_MODEL"],
         temperature=temperature,
     )
 
