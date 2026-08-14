@@ -5,7 +5,7 @@
     planner ─(검색 충분)→ search → synthesizer → writer → checker → reviser → reporter → cleaner → END
        │ ▲
        │ └─(부족, 재시도 여유 있음)
-       └───(끝내 못 구함)──────────→ synthesizer
+       └───(하나도 못 얻음)────────→ synthesizer
 """
 
 import os
@@ -24,16 +24,23 @@ from nodes import (
     WriterNode,
     build_search,
     enough_searches,
+    search_count,
 )
 from state import State
 from utils import PrettyTrace, today_kst
 
 
 def route(state: State) -> str:
-    """검색이 충분하면 진행, 부족하면 재시도, 재시도도 끝났으면 있는 것만 갖고 넘어간다."""
+    """검색이 충분하면 진행, 부족하면 재시도, 재시도가 끝나면 있는 것만이라도 돌린다.
+
+    하나도 못 얻었을 때만 검색을 건너뛴다. 그 경우 synthesizer 가 빈손으로
+    받아 "확인되지 않음" 으로 처리한다.
+    """
     if enough_searches(state):
         return SEARCH
-    return PlannerNode.name if state.get("retry", 0) < MAX_RETRY else SynthesizerNode.name
+    if state.get("retry", 0) < MAX_RETRY:
+        return PlannerNode.name
+    return SEARCH if search_count(state) else SynthesizerNode.name
 
 
 def build_graph():

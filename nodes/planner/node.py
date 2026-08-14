@@ -32,10 +32,14 @@ class PlannerNode(LLMNode):
         return {"messages": [response], "retry": state.get("retry", 0) + 1}
 
 
-def enough_searches(state: State) -> bool:
-    """검색을 충분히 발행했는지. 조건부 엣지가 쓴다."""
+def search_count(state: State) -> int:
+    """마지막 planner 응답이 발행한 검색 요청 수. 조건부 엣지가 쓴다."""
     last = state["messages"][-1]
-    return isinstance(last, AIMessage) and len(last.tool_calls) >= MIN_CALLS
+    return len(last.tool_calls) if isinstance(last, AIMessage) else 0
+
+
+def enough_searches(state: State) -> bool:
+    return search_count(state) >= MIN_CALLS
 
 
 def _user_input(date) -> str:
