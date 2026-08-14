@@ -9,7 +9,7 @@ on:
       environment:
         description: 어느 채널로 보낼지
         type: choice
-        options: [dev, prod]
+        options: [dev]      # 운영 발송은 스케줄만. 수동으로 실수하는 것을 막는다
         default: dev
 
 permissions:
