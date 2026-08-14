@@ -13,3 +13,9 @@ dependencies = [
     "python-dotenv",
     "requests",
 ]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]   # 문법 오류, 미사용, import 정렬

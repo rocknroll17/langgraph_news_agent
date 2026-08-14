@@ -2,32 +2,44 @@
 
 이 파일에는 '무엇을 어떤 순서로' 만 둔다. '어떻게' 는 nodes/<이름>/ 안에 있다.
 
-    planner ─(검색 충분)→ search → synthesizer → writer → checker → reviser → reporter → cleaner → END
-       │ ▲
-       │ └─(부족, 재시도 여유 있음)
-       └───(하나도 못 얻음)──────────────────────────────→ reporter (실패 알림)
+    planner → search → refiner(기사별 병렬) → synthesizer → follow_up
+        → writer ⇄ read → checker → reviser → reporter → cleaner → END
+
+갈림길은 넷이다.
+
+    planner      검색이 부족하면 재시도, 끝내 하나도 못 얻으면 reporter 로 직행
+    synthesizer  1회차면 follow_up 으로, 2회차면 writer 로
+    follow_up    추가 검색을 냈으면 search 로 되돌아가고, 없으면 writer 로
+    writer       기사 조회를 요청했으면 read 로, 아니면 checker 로
 """
 
 import os
 
 from langgraph.graph import END, START, StateGraph
+from langgraph.types import Send
 
-from config import MAX_RETRY, build_model, build_search_tool
+from config import MAX_RETRY, MAX_ROUNDS, build_model, build_search_tool
 from nodes import (
+    READ,
     SEARCH,
-    CleanerNode,
-    PlannerNode,
-    ReporterNode,
-    SynthesizerNode,
     CheckerNode,
+    CleanerNode,
+    FollowUpNode,
+    PlannerNode,
+    RefinerNode,
+    ReporterNode,
     ReviserNode,
+    SynthesizerNode,
     WriterNode,
+    build_read,
     build_search,
     enough_searches,
     search_count,
+    wants_articles,
+    wants_more,
 )
 from state import State
-from utils import PrettyTrace, today_kst
+from utils import PrettyTrace, articles, today_kst
 
 
 def route(state: State) -> str:
@@ -43,13 +55,40 @@ def route(state: State) -> str:
     return SEARCH if search_count(state) else ReporterNode.name
 
 
-def build_graph():
+def fan_out_refiners(state: State) -> list[Send]:
+    """검색 결과를 기사 한 건씩 refiner 로 흩뿌린다.
+
+    기사마다 독립이라 병렬로 돌 수 있다. 입력이 작아 빠르고,
+    정리된 결과만 뒤로 넘어가 synthesizer·checker 가 가벼워진다.
+    """
+    payloads = articles.to_sends(state["messages"], state["date"])
+    return [Send(RefinerNode.name, p) for p in payloads]
+
+
+def route_after_synthesize(state: State) -> str:
+    """1회차면 더 팔 게 있는지 물어보고, 2회차면 바로 글쓰기로 넘어간다."""
+    return FollowUpNode.name if state.get("rounds", 0) < MAX_ROUNDS else WriterNode.name
+
+
+def route_after_follow_up(state: State) -> str:
+    """추가 검색을 냈으면 다시 검색, 아니면 있는 재료로 글을 쓴다."""
+    return SEARCH if wants_more(state) else WriterNode.name
+
+
+def route_after_write(state: State) -> str:
+    """기사 조회를 요청했으면 꺼내주고, 아니면 검증으로 넘어간다."""
+    return READ if wants_articles(state) else CheckerNode.name
+
+
+def build_graph(**compile_kwargs):
     model = build_model()
     tool = build_search_tool()
 
     nodes = [
         PlannerNode(model.bind_tools([tool])),
+        RefinerNode(model),
         SynthesizerNode(model),
+        FollowUpNode(model.bind_tools([tool])),
         WriterNode(model),
         CheckerNode(model),
         ReviserNode(model),
@@ -58,7 +97,8 @@ def build_graph():
     ]
 
     graph = StateGraph(State)
-    graph.add_node(SEARCH, build_search([tool]))   # tool_call 들을 병렬 실행
+    graph.add_node(SEARCH, build_search([tool]))   # 검색 tool_call 병렬 실행
+    graph.add_node(READ, build_read())            # 기사 조회 tool_call 실행
     for node in nodes:
         graph.add_node(node.name, node)
 
@@ -66,15 +106,22 @@ def build_graph():
     graph.add_conditional_edges(
         PlannerNode.name, route, [SEARCH, PlannerNode.name, ReporterNode.name]
     )
-    graph.add_edge(SEARCH, SynthesizerNode.name)
-    graph.add_edge(SynthesizerNode.name, WriterNode.name)
-    graph.add_edge(WriterNode.name, CheckerNode.name)
+    graph.add_conditional_edges(SEARCH, fan_out_refiners, [RefinerNode.name])
+    graph.add_edge(RefinerNode.name, SynthesizerNode.name)
+    graph.add_conditional_edges(
+        SynthesizerNode.name, route_after_synthesize, [FollowUpNode.name, WriterNode.name]
+    )
+    graph.add_conditional_edges(
+        FollowUpNode.name, route_after_follow_up, [SEARCH, WriterNode.name]
+    )
+    graph.add_conditional_edges(WriterNode.name, route_after_write, [READ, CheckerNode.name])
+    graph.add_edge(READ, WriterNode.name)
     graph.add_edge(CheckerNode.name, ReviserNode.name)
     graph.add_edge(ReviserNode.name, ReporterNode.name)
     graph.add_edge(ReporterNode.name, CleanerNode.name)
     graph.add_edge(CleanerNode.name, END)
 
-    return graph.compile()
+    return graph.compile(**compile_kwargs)
 
 
 app = build_graph()

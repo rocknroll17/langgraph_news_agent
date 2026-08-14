@@ -3,7 +3,8 @@
 오늘 브리핑을 남겨두고 다음 실행 때 planner 가 참고한다.
 """
 
-from datetime import date as Date, datetime
+from datetime import date as Date
+from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 

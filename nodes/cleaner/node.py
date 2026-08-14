@@ -25,6 +25,10 @@ class CleanerNode(Node):
             "report": [RemoveMessage(id=REMOVE_ALL_MESSAGES)],
             "retry": 0,
             "facts": "",
+            "rounds": 0,
+            "consumed": 0,
+            "read_done": False,
+            "articles": None,   # collect 리듀서가 None 을 초기화로 해석한다
             "verdicts": [],
             "cited": "",
             "failed": False,

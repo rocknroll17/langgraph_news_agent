@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from nodes.base import LLMNode
 from state import State
-from utils import text
+from utils import articles
 
 from . import prompts
 
@@ -33,7 +33,7 @@ class CheckerNode(LLMNode):
         self.chain = prompts.TEMPLATE | model.with_structured_output(Checked)
 
     def run(self, state: State) -> dict:
-        index = text.build_index(state["messages"])
+        index = state.get("articles") or []
         report = "\n".join(str(m.content) for m in state["report"])
         if not index or not report.strip():
             return {"verdicts": []}
@@ -41,7 +41,7 @@ class CheckerNode(LLMNode):
         try:
             checked = self.chain.invoke({
                 "date": state["date"],
-                "index": text.render_index(index),
+                "index": articles.render(index),
                 "report": report,
             })
         except Exception as e:      # 구조화 출력이 깨지면 검증을 건너뛰고 원문을 살린다

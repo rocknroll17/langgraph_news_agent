@@ -2,17 +2,12 @@
 
 from langchain_core.messages import AIMessage
 
-from config import MAX_CALLS, MIN_CALLS, PREV_DAYS
+from config import MAX_CALLS, MIN_CALLS, PREV_DAYS, REQUEST
 from nodes.base import LLMNode
 from state import State
 from utils import load_previous_reports
 
 from . import prompts
-
-REQUEST = (
-    "오늘 미국 증시와 세계 시장의 변동, "
-    "그리고 미국 정치 중 금융 관련 이슈를 조사해 브리핑하세요."
-)
 
 
 class PlannerNode(LLMNode):

@@ -15,6 +15,8 @@
 
 - **Grounded output.** Every claim is decomposed and matched against the retrieved sources before publishing. Citations are inserted by code, not by the model.
 - **Single-pass fan-out.** The planner emits all search queries in one turn and `ToolNode` runs them in parallel.
+- **Follow-up round.** A second pass targets whatever the first pass only mentioned in passing.
+- **On-demand sources.** The writer sees a claim outline plus an article index, and pulls full text only where it needs detail — keeping the prompt well inside the context window.
 - **Runs on any model.** Point `OPENAI_BASE_URL` at any OpenAI-compatible endpoint, including a local one.
 - **No server.** A scheduled GitHub Actions run does the work and shuts down.
 
@@ -43,6 +45,18 @@ TRACE=1 uv run python main.py     # print what each node sent and received
 TRACE=full uv run python main.py  # print full prompts and responses
 ```
 
+Iterating on a single node does not need a full run. `dev.py` snapshots the state
+in front of every node, so you can replay just the one you are editing.
+
+```bash
+uv run python dev.py collect      # one full run, saving a snapshot per node
+uv run python dev.py show writer  # inspect what the writer will receive
+uv run python dev.py run writer   # replay that node alone
+```
+
+Search results are cached per day under `SEARCH_CACHE=1` (the default in `dev.py`),
+so replays cost no Tavily quota.
+
 ## How it works
 
 ```mermaid
@@ -51,8 +65,13 @@ flowchart LR
     P -->|enough queries| S[search]
     P -.->|too few · retry| P
     P -.->|no queries at all| RP
-    S --> SY[synthesizer]
-    SY --> W[writer]
+    S --> RF[refiner]
+    RF --> SY[synthesizer]
+    SY -->|round 1| FU[follow_up]
+    SY -->|round 2| W
+    FU -->|more queries| S
+    FU -->|done| W[writer]
+    W <-->|read_articles| RD[read]
     W --> C[checker]
     C --> R[reviser]
     R --> RP[reporter]
@@ -64,8 +83,11 @@ flowchart LR
 |:--|:--|:-:|
 | `planner` | Emits 4–6 search queries in a single turn | ● |
 | `search` | Fans the tool calls out in parallel via `ToolNode` | |
-| `synthesizer` | Extracts claims from raw results and tags causal / contrastive links | ● |
-| `writer` | Drafts prose from the extracted claims only | ● |
+| `refiner` | Strips page cruft from each article, one instance per result | ● |
+| `synthesizer` | Merges claims across sources and tags causal / contrastive links | ● |
+| `follow_up` | Reads the first pass and issues follow-up queries for gaps | ● |
+| `writer` | Drafts prose, pulling full articles on demand via `read_articles` | ● |
+| `read` | Serves the requested articles back to the writer | |
 | `checker` | Matches each claim against the source index and judges it | ● |
 | `reviser` | Applies minimal edits per verdict and inserts citations | ● |
 | `reporter` | Saves to file and posts to Discord | |
@@ -111,10 +133,12 @@ Register the variables above as repository Secrets and Variables. The `dev` envi
 
 ```
 main.py              graph assembly
+dev.py               replay a single node from a saved snapshot
 config.py            model, tools, constants
 state.py             graph state and reducers
+cache.py             per-day search cache
 nodes/<node>/        node.py (logic) + prompts.py (ChatPromptTemplate)
-utils/               file I/O, Discord delivery, citation index, tracing
+utils/               file I/O, Discord delivery, article handling, tracing
 ```
 
 ## License

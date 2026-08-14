@@ -9,3 +9,7 @@ venv/
 
 # 로그
 logs/
+
+# 시험 실행용 검색 캐시
+.search_cache/
+.dev_state/

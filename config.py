@@ -11,6 +11,8 @@ from langchain_core.tools import BaseTool, tool
 from langchain_openai import ChatOpenAI
 from langchain_tavily import TavilySearch
 
+import cache
+
 ROOT = Path(__file__).resolve().parent
 
 # 실행 위치와 무관하게 이 파일 옆의 .env 를 읽는다
@@ -48,15 +50,32 @@ def build_search_tool() -> BaseTool:
     @tool
     def search_news(query: str) -> str:
         """오늘 자 뉴스를 검색한다. 검색어는 영어로 쓸 것."""
+        if cache.enabled() and (hit := cache.get(query)) is not None:
+            return hit
+
         # callbacks=[] 로 잘라준다. 안 그러면 안쪽 tavily 호출까지 트레이스에 두 번 찍힌다.
-        return str(tavily.invoke({"query": query}, config={"callbacks": []}))
+        result = str(tavily.invoke({"query": query}, config={"callbacks": []}))
+
+        if cache.enabled():
+            cache.put(query, result)
+        return result
 
     return search_news
+
+
+# ── 리서치 주제 ─────────────────────────────────────────
+# planner 가 검색어를 만들 때, refiner 가 "쓸 내용" 을 가릴 때 같은 기준을 쓴다.
+REQUEST = (
+    "오늘 미국 증시와 세계 시장의 변동, "
+    "그리고 미국 정치 중 금융 관련 이슈를 조사해 브리핑하세요."
+)
 
 
 # ── 상수 ────────────────────────────────────────────────
 MIN_CALLS, MAX_CALLS = 4, 6   # planner 가 한 번에 발행할 검색 횟수 범위
 MAX_RETRY = 2                 # planner 재시도 상한 (무한 루프 방지)
 PREV_DAYS = 2                 # planner 에게 붙일 과거 브리핑 개수
+FOLLOWUP_CALLS = 3            # follow_up 이 추가로 발행할 검색 상한
+MAX_ROUNDS = 2                # synthesizer 회차 상한 (1차 + 추가조사 1회)
 
 REPORTS_DIR = ROOT / "reports"
