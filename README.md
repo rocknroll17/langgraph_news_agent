@@ -47,7 +47,8 @@ TRACE=full uv run python main.py  # print full prompts and responses
 
 ```mermaid
 flowchart LR
-    P[planner] -->|enough queries| S[search]
+    ST([START]) --> P[planner]
+    P -->|enough queries| S[search]
     P -.->|too few · retry| P
     P -.->|gave up| SY
     S --> SY[synthesizer]
