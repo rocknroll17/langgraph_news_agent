@@ -50,7 +50,7 @@ flowchart LR
     ST([START]) --> P[planner]
     P -->|enough queries| S[search]
     P -.->|too few · retry| P
-    P -.->|no queries at all| SY
+    P -.->|no queries at all| RP
     S --> SY[synthesizer]
     SY --> W[writer]
     W --> C[checker]

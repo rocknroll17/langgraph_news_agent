@@ -25,3 +25,4 @@ class State(TypedDict):
     facts: str    # synthesizer 가 추린 사실 목록
     verdicts: list[dict]   # checker 의 주장별 판정
     cited: str             # reviser 가 수정·인용을 마친 본문
+    failed: bool           # 브리핑을 만들지 못하고 끝났는지

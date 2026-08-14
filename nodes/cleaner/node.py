@@ -27,4 +27,5 @@ class CleanerNode(Node):
             "facts": "",
             "verdicts": [],
             "cited": "",
+            "failed": False,
         }
