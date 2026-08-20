@@ -33,7 +33,7 @@ class State(TypedDict):
     facts: str    # synthesizer 가 추린 사실 목록 (회차별로 이어붙는다)
     rounds: int   # synthesizer 가 돈 횟수
     consumed: int # synthesizer 가 이미 읽은 articles 개수
-    read_done: bool  # writer 가 기사 조회를 마쳤는지
+    draft: Annotated[list[AnyMessage], add_messages]   # writer 의 조회 요청과 그 결과
     verdicts: list[dict]   # checker 의 주장별 판정
     cited: str             # reviser 가 수정·인용을 마친 본문
     failed: bool           # 브리핑을 만들지 못하고 끝났는지

@@ -36,5 +36,8 @@ def catalog(articles: list[dict]) -> str:
 
 
 def build() -> ToolNode:
-    """조회 요청을 실행하는 노드."""
-    return ToolNode([read_articles])
+    """조회 요청을 실행하는 노드.
+
+    messages 가 아니라 draft 를 읽고 쓴다. writer 의 왕복만 거기 담긴다.
+    """
+    return ToolNode([read_articles], messages_key="draft")

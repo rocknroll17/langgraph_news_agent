@@ -6,7 +6,7 @@
 원칙을 먼저 세우고, 자주 어기는 지점만 예시로 붙인다.
 """
 
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 SYSTEM = """당신은 리서치 팀의 에디터입니다.
 오늘 날짜는 {date} (한국 시간 기준) 입니다.
@@ -41,8 +41,9 @@ SYSTEM = """당신은 리서치 팀의 에디터입니다.
     read_articles([2, 5, 7])
 
 - 사실 목록만으로 문단이 얇겠다 싶은 주제의 번호를 고르세요.
-- 요청은 **한 번만** 합니다. 필요한 번호를 처음에 다 넣으세요.
-- 8건을 넘기지 마세요. 다 읽을 필요는 없습니다.
+- 필요한 번호를 한 번에 다 넣으세요. 왕복이 늘수록 느려집니다.
+- 한 번에 8건을 넘기지 마세요. 다 읽을 필요는 없습니다.
+- 받은 기사로 부족하면 다시 요청할 수 있습니다. 다만 {max_reads}회까지입니다.
 - 사실 목록만으로 충분하면 아예 요청하지 않아도 됩니다.
 
 읽은 기사와 사실 목록, 그 둘에 없는 내용은 쓰지 마세요.
@@ -102,4 +103,5 @@ USER_INPUT = """## 사실 목록 (뼈대)
 TEMPLATE = ChatPromptTemplate.from_messages([
     ("system", SYSTEM),
     ("human", USER_INPUT),
+    MessagesPlaceholder("draft"),   # 조회 요청과 그 결과. 1차에는 비어 있다.
 ])

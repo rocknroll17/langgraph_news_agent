@@ -77,5 +77,6 @@ MAX_RETRY = 2                 # planner 재시도 상한 (무한 루프 방지)
 PREV_DAYS = 2                 # planner 에게 붙일 과거 브리핑 개수
 FOLLOWUP_CALLS = 3            # follow_up 이 추가로 발행할 검색 상한
 MAX_ROUNDS = 2                # synthesizer 회차 상한 (1차 + 추가조사 1회)
+MAX_READ_ROUNDS = 3           # writer 가 기사를 꺼내 읽을 수 있는 횟수
 
 REPORTS_DIR = ROOT / "reports"
