@@ -15,8 +15,12 @@ import cache
 
 ROOT = Path(__file__).resolve().parent
 
-# 실행 위치와 무관하게 이 파일 옆의 .env 를 읽는다
+# 실행 위치와 무관하게 이 파일 옆의 .env 를 읽는다.
+# 로컬에서는 .env.dev 가 그 위를 덮는다 — 운영 채널로 시험 발송하는 사고를 막는다.
+# CI(GitHub Actions)에서는 .env.dev 가 없고 값은 저장소 Secrets 에서 온다.
 load_dotenv(ROOT / ".env")
+if not os.environ.get("CI"):
+    load_dotenv(ROOT / ".env.dev", override=True)
 
 
 # ── 모델 ────────────────────────────────────────────────

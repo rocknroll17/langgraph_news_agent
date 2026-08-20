@@ -8,8 +8,18 @@
 import os
 import re
 import time
+from typing import NamedTuple
 
 import requests
+
+
+class Sent(NamedTuple):
+    """발송 결과. 로그는 부르는 쪽(reporter)이 남긴다."""
+    messages: int          # 실제로 나간 건수 (조각 × 웹훅)
+    chunks: int            # 2000자 제한으로 나눠진 조각 수
+    targets: list[str]     # 마스킹된 웹훅 목록
+    failed: list[str]      # 실패한 웹훅과 원인
+
 
 MESSAGE_LIMIT = 1900   # 실제 제한은 2000자. 헤더 여유분을 뺀 값.
 SEND_INTERVAL = 0.5    # 조각 사이 대기 (2초당 5건 제한 회피)
@@ -55,8 +65,8 @@ def send(
     text: str,
     webhook_url: str | list[str] | None = None,
     suppress_embeds: bool = True,
-) -> int:
-    """웹훅으로 보낸다. 길면 나눠 보내고, 보낸 메시지 총 건수를 돌려준다.
+) -> Sent:
+    """웹훅으로 보낸다. 길면 나눠 보내고, 무엇이 어디로 나갔는지 돌려준다.
 
     웹훅을 여러 개 주면 모두에게 보낸다. 하나가 실패해도 나머지는 계속 보내고,
     끝난 뒤에 실패를 모아서 알린다 — 한 채널 때문에 전체가 날아가면 안 된다.
@@ -84,11 +94,9 @@ def send(
         except Exception as e:
             failed.append(f"{_mask(url)}: {type(e).__name__}")
 
-    if failed:
-        print(f"[discord] 발송 실패 {len(failed)}/{len(urls)} — {', '.join(failed)}")
     if not sent:
         raise RuntimeError("모든 웹훅 발송에 실패했습니다.")
-    return sent
+    return Sent(sent, len(chunks), [_mask(u) for u in urls], failed)
 
 
 def _send_one(url: str, chunks: list[str], payload_base: dict) -> int:

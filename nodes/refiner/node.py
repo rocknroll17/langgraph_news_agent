@@ -9,6 +9,7 @@ from typing_extensions import TypedDict
 
 from config import REQUEST
 from nodes.base import LLMNode
+from utils import note
 
 from . import prompts
 
@@ -46,7 +47,7 @@ class RefinerNode(LLMNode):
                 "content": state["content"],
             })
         except Exception as e:      # 한 건이 깨져도 나머지는 살린다
-            print(f"[refiner] 실패, 원문 유지 — {type(e).__name__}")
+            note("refiner", f"failed, keeping raw text — {type(e).__name__}")
             out = Refined(relevant=True, content=state["content"])
 
         if not out.relevant or not out.content.strip():

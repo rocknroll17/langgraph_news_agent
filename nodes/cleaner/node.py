@@ -12,13 +12,17 @@ from langgraph.graph.message import REMOVE_ALL_MESSAGES
 
 from nodes.base import Node
 from state import State
+from utils import note
 
 
 class CleanerNode(Node):
     name = "cleaner"
 
     def run(self, state: State) -> dict:
-        print(f"[cleaner] 메시지 {len(state['messages'])}건 정리, 상태 초기화")
+        note("cleaner",
+             f"clearing {len(state.get('messages') or [])} message(s), "
+             f"{len(state.get('articles') or [])} article(s), "
+             f"{len(state.get('facts') or ''):,} chars of facts")
         return {
             # add_messages 리듀서에 RemoveMessage 를 흘리면 해당 메시지가 지워진다
             "messages": [RemoveMessage(id=REMOVE_ALL_MESSAGES)],

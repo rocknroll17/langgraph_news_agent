@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from nodes.base import LLMNode
 from state import State
-from utils import articles
+from utils import articles, note
 
 from . import prompts
 
@@ -45,7 +45,7 @@ class CheckerNode(LLMNode):
                 "report": report,
             })
         except Exception as e:      # 구조화 출력이 깨지면 검증을 건너뛰고 원문을 살린다
-            print(f"[checker] 판정 실패, 원문 유지: {type(e).__name__}")
+            note("checker", f"verdict failed, keeping draft as-is — {type(e).__name__}")
             return {"verdicts": []}
 
         _log(checked.verdicts)
@@ -53,11 +53,6 @@ class CheckerNode(LLMNode):
 
 
 def _log(verdicts: list[Verdict]) -> None:
-    n = lambda v: sum(1 for x in verdicts if x.verdict == v)  # noqa: E731
-    print(
-        f"[checker] 주장 {len(verdicts)}건 — 근거있음 {n('SUPPORTED')}"
-        f" / 어긋남 {n('CONTRADICTED')} / 근거없음 {n('NOT_ENOUGH_INFO')}"
-    )
-    for v in verdicts:
-        if v.verdict == "CONTRADICTED":
-            print(f"   ✗ {v.claim[:60]} → 색인값: {v.correction[:60]}")
+    """어긋난 항목만 남긴다. 건수는 Trace 가 이미 보여준다."""
+    if wrong := [v for v in verdicts if v.verdict == "CONTRADICTED"]:
+        note("checker", *(f"mismatch  {v.claim[:45]} → {v.correction[:45]}" for v in wrong))

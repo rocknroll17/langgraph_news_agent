@@ -6,6 +6,7 @@ venv/
 
 # 환경 변수 — 실제 키가 들어간다
 .env
+.env.dev
 
 # 로그
 logs/

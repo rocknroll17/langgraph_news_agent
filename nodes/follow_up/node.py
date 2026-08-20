@@ -20,9 +20,6 @@ class FollowUpNode(LLMNode):
             "max_calls": FOLLOWUP_CALLS,
         })
         response.tool_calls = response.tool_calls[:FOLLOWUP_CALLS]
-
-        n = len(response.tool_calls)
-        print(f"[follow_up] 추가 검색 {n}건" if n else "[follow_up] 추가 검색 없음")
         return {"messages": [response]}
 
 

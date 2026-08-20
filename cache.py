@@ -36,7 +36,6 @@ def get(query: str) -> str | None:
     p = _path(query)
     if not p.exists():
         return None
-    print(f"[cache] hit — {query[:50]}")
     return json.loads(p.read_text(encoding="utf-8"))["result"]
 
 

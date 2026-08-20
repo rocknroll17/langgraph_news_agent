@@ -39,7 +39,7 @@ from nodes import (
     wants_more,
 )
 from state import State
-from utils import PrettyTrace, articles, today_kst
+from utils import Trace, articles, today_kst
 
 
 def route(state: State) -> str:
@@ -80,7 +80,8 @@ def route_after_write(state: State) -> str:
     return READ if wants_articles(state) else CheckerNode.name
 
 
-def build_graph(**compile_kwargs):
+def build_graph(entry: str = PlannerNode.name, **compile_kwargs):
+    """entry 는 개발용이다. 저장해 둔 상태로 중간 노드부터 이어 돌릴 때 쓴다."""
     model = build_model()
     tool = build_search_tool()
 
@@ -102,7 +103,11 @@ def build_graph(**compile_kwargs):
     for node in nodes:
         graph.add_node(node.name, node)
 
-    graph.add_edge(START, PlannerNode.name)
+    # refiner 는 기사별로 흩뿌려서 들어가는 노드라 진입 간선이 조건부다.
+    if entry == RefinerNode.name:
+        graph.add_conditional_edges(START, fan_out_refiners, [RefinerNode.name])
+    else:
+        graph.add_edge(START, entry)
     graph.add_conditional_edges(
         PlannerNode.name, route, [SEARCH, PlannerNode.name, ReporterNode.name]
     )
@@ -133,8 +138,9 @@ def initial_state() -> dict:
 
 
 if __name__ == "__main__":
-    # TRACE=1     → 요약 (노드별로 무엇이 오갔는지)
-    # TRACE=full  → 프롬프트·응답 전문
-    trace = [PrettyTrace(full=os.environ.get("TRACE") == "full")] if os.environ.get("TRACE") else []
-    result = app.invoke(initial_state(), config={"callbacks": trace})
+    # TRACE=1 을 붙이면 노드별로 무엇이 오갔는지 찍는다
+    trace = Trace() if os.environ.get("TRACE") else None
+    result = app.invoke(initial_state(), config={"callbacks": [trace] if trace else []})
+    if trace:
+        trace.summary()
     raise SystemExit(1 if result.get("failed") else 0)   # CI 가 실패를 알아채도록

@@ -4,8 +4,8 @@
 한 번 모아두면 그다음부터는 고친 노드만 몇 초에 확인할 수 있다.
 
     uv run python dev.py collect          전체를 돌리며 노드마다 상태 저장
-    uv run python dev.py collect writer   writer 직전까지만 돌리고 멈춤
-    uv run python dev.py run writer       저장해 둔 상태로 writer 만 실행
+    uv run python dev.py collect refiner  검색까지만 돌리고 멈춤
+    uv run python dev.py run refiner      저장해 둔 검색 결과로 refiner 부터 끝까지
     uv run python dev.py show writer      writer 가 받을 입력을 확인만
 
 검색은 SEARCH_CACHE=1 로 캐시되므로 Tavily 쿼터를 쓰지 않는다.
@@ -26,16 +26,19 @@ import main
 from nodes import (
     CheckerNode,
     FollowUpNode,
+    RefinerNode,
     ReporterNode,
     ReviserNode,
     SynthesizerNode,
     WriterNode,
 )
+from utils import Trace
 
 STATE_DIR = Path(__file__).parent / ".dev_state"
 
-NODES = {n.name: n for n in (SynthesizerNode, FollowUpNode, WriterNode,
-                             CheckerNode, ReviserNode, ReporterNode)}
+# 이어 돌리기 시작점으로 삼을 수 있는 노드들. 검색은 이미 끝난 셈 치고 refiner 부터다.
+NODES = [n.name for n in (RefinerNode, SynthesizerNode, FollowUpNode, WriterNode,
+                          CheckerNode, ReviserNode, ReporterNode)]
 
 
 def _path(node: str) -> Path:
@@ -63,7 +66,9 @@ def collect(stop: str | None = None) -> None:
         interrupt_before=[stop] if stop else None,
     )
     config = {"configurable": {"thread_id": "dev"}}
-    app.invoke(main.initial_state(), config=config)
+    trace = Trace()
+    app.invoke(main.initial_state(), config={**config, "callbacks": [trace]})
+    trace.summary()
 
     STATE_DIR.mkdir(exist_ok=True)
     saved = set()
@@ -76,37 +81,25 @@ def collect(stop: str | None = None) -> None:
                 json.dumps(dumpd(values), ensure_ascii=False), encoding="utf-8")
             saved.add(node)
 
-    print("저장:", ", ".join(sorted(saved)) or "없음")
+    print("saved:", ", ".join(sorted(saved)) or "nothing")
 
 
 def run(node: str) -> None:
-    state = load_state(node)
-    cls = NODES[node]
-    inst = cls() if node == ReporterNode.name else cls(main.build_model())
-
-    print(f"── {node} 실행\n")
-    out = inst.run(state)
-    for key, value in out.items():
-        if key == "messages":
-            for m in value:
-                print(f"[{type(m).__name__}]")
-                if getattr(m, "tool_calls", None):
-                    for c in m.tool_calls:
-                        print(f"  🔧 {c['name']}({c['args']})")
-                print(m.content)
-        else:
-            print(f"\n[{key}] {str(value)[:2000]}")
+    """저장해 둔 상태로 그 노드부터 END 까지 이어 돌린다."""
+    trace = Trace()
+    main.build_graph(entry=node).invoke(load_state(node), config={"callbacks": [trace]})
+    trace.summary()
 
 
 def show(node: str) -> None:
     state = load_state(node)
-    print(f"── {node} 가 받을 상태\n")
+    print(f"── state going into {node}\n")
     for key in ("date", "rounds", "consumed", "read_done"):
         if key in state:
             print(f"  {key:10} {state[key]}")
-    print(f"  {'articles':10} {len(state.get('articles') or [])}건")
-    print(f"  {'facts':10} {len(state.get('facts') or ''):,}자")
-    print(f"  {'messages':10} {len(state.get('messages') or [])}건")
+    print(f"  {'articles':10} {len(state.get('articles') or [])}")
+    print(f"  {'facts':10} {len(state.get('facts') or ''):,} chars")
+    print(f"  {'messages':10} {len(state.get('messages') or [])}")
     if state.get("facts"):
         print(f"\n── facts\n{state['facts'][:2000]}")
 
