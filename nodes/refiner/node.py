@@ -4,6 +4,7 @@ Send 로 기사 수만큼 띄워 병렬 실행한다. 각 인스턴스는 기사
 입력이 작아서 빠르고, 출력이 정리돼 있어 뒤 단계가 전부 가벼워진다.
 """
 
+from openai import APIError
 from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
 
@@ -35,7 +36,10 @@ class RefinerNode(LLMNode):
 
     def __init__(self, model) -> None:
         super().__init__(model)
-        self.chain = prompts.TEMPLATE | model.with_structured_output(Refined)
+        self.chain = (prompts.TEMPLATE | model.with_structured_output(Refined)).with_retry(
+            retry_if_exception_type=(APIError,),
+            stop_after_attempt=3,
+        )
 
     def run(self, state: RefinerInput) -> dict:
         try:

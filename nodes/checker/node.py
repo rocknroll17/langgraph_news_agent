@@ -2,6 +2,7 @@
 
 from typing import Literal
 
+from openai import APIError
 from pydantic import BaseModel, Field
 
 from nodes.base import LLMNode
@@ -30,7 +31,10 @@ class CheckerNode(LLMNode):
 
     def __init__(self, model) -> None:
         super().__init__(model)
-        self.chain = prompts.TEMPLATE | model.with_structured_output(Checked)
+        self.chain = (prompts.TEMPLATE | model.with_structured_output(Checked)).with_retry(
+            retry_if_exception_type=(APIError,),
+            stop_after_attempt=3,
+        )
 
     def run(self, state: State) -> dict:
         index = state.get("articles") or []
