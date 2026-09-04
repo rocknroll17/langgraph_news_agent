@@ -13,7 +13,7 @@
 
 ## Highlights
 
-- **Grounded output.** Every claim is decomposed and matched against the retrieved sources before publishing. Citations are inserted by code, not by the model.
+- **Grounded output.** Every claim is decomposed and matched against the retrieved sources before publishing. Citations are attached only to claims the checker verified, and contradicted figures are replaced with the source value.
 - **Single-pass fan-out.** The planner emits all search queries in one turn and `ToolNode` runs them in parallel.
 - **Follow-up round.** A second pass targets whatever the first pass only mentioned in passing.
 - **On-demand sources.** The writer sees a claim outline plus an article index, and pulls full text only where it needs detail — keeping the prompt well inside the context window.
