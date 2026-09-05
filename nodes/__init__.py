@@ -1,3 +1,4 @@
+from .assembler import AssemblerNode
 from .checker import CheckerNode
 from .cleaner import CleanerNode
 from .follow_up import FollowUpNode, wants_more
@@ -27,6 +28,7 @@ __all__ = [
     "build_read",
     "CheckerNode",
     "ReviserNode",
+    "AssemblerNode",
     "ReporterNode",
     "CleanerNode",
 ]

@@ -34,6 +34,7 @@ class State(TypedDict):
     rounds: int   # synthesizer 가 돈 횟수
     consumed: int # synthesizer 가 이미 읽은 articles 개수
     draft: Annotated[list[AnyMessage], add_messages]   # writer 의 조회 요청과 그 결과
-    verdicts: list[dict]   # checker 의 주장별 판정
-    cited: str             # reviser 가 수정·인용을 마친 본문
+    verdicts: list[dict]   # checker 의 문장별 판정
+    fixes: Annotated[list[dict], collect]   # reviser 가 고친 문장들 (문장 번호별)
+    cited: str             # assembler 가 수정·인용을 마친 본문
     failed: bool           # 브리핑을 만들지 못하고 끝났는지

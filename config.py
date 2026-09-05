@@ -33,6 +33,46 @@ def build_model(temperature: float = 0.0) -> ChatOpenAI:
     )
 
 
+# ── 검색 허용 도메인 ──────────────────────────────────────
+# 검색 결과의 품질은 문장을 다듬어서가 아니라 입구에서 정해진다.
+# 브리핑에서 틀린 수치는 예외 없이 2차 사이트(요약 블로그, 예측시장, 집계 사이트)에서
+# 왔고, 주요 매체·기관 인용은 맞았다. 그래서 통신사·경제지·기관·거래소로 제한한다.
+#
+# 표기 규칙 (Tavily 실측):
+#   - 루트 도메인만 적는다. "nikkei.com" 이 asia.nikkei.com 까지 잡는다.
+#   - 와일드카드("*.nikkei.com")를 넣으면 필터가 깨져 아무 사이트나 들어온다. 쓰지 않는다.
+#   - 라이브러리 상한은 150개.
+SEARCH_DOMAINS = [
+    # 통신사
+    "reuters.com", "apnews.com", "afp.com", "yna.co.kr",
+    # 경제·금융 전문지 (미국·유럽)
+    "bloomberg.com", "cnbc.com", "ft.com", "wsj.com", "barrons.com", "economist.com",
+    "marketwatch.com", "investors.com", "fortune.com", "foxbusiness.com",
+    "finance.yahoo.com", "morningstar.com", "investing.com", "tradingeconomics.com",
+    # 종합 일간지·방송 (금융·정책 보도)
+    "nytimes.com", "washingtonpost.com", "theguardian.com", "bbc.com", "bbc.co.uk",
+    "cnn.com", "nbcnews.com", "cbsnews.com", "abcnews.go.com", "npr.org",
+    "axios.com", "politico.com", "thehill.com", "dw.com", "france24.com",
+    # 아시아 매체 (영문)
+    "nikkei.com", "japantimes.co.jp", "asahi.com", "mainichi.jp", "nhk.or.jp",
+    "scmp.com", "caixinglobal.com", "straitstimes.com", "businesstimes.com.sg",
+    "channelnewsasia.com", "kedglobal.com", "koreaherald.com", "koreatimes.co.kr",
+    "koreajoongangdaily.joins.com", "hani.co.kr", "mk.co.kr",
+    "economictimes.indiatimes.com", "livemint.com", "business-standard.com",
+    # 중동·에너지
+    "thenationalnews.com", "arabnews.com", "gulfnews.com", "oilprice.com",
+    # 중앙은행·정부·통계 (1차 자료)
+    "federalreserve.gov", "stlouisfed.org", "newyorkfed.org", "bls.gov", "bea.gov",
+    "census.gov", "treasury.gov", "sec.gov", "cbo.gov", "eia.gov", "whitehouse.gov",
+    "ecb.europa.eu", "bankofengland.co.uk", "europa.eu", "boj.or.jp", "bok.or.kr",
+    "pbc.gov.cn", "stats.gov.cn", "imf.org", "worldbank.org", "bis.org", "oecd.org",
+    "opec.org", "iea.org",
+    # 거래소·지수 제공사
+    "nasdaq.com", "nyse.com", "spglobal.com", "cmegroup.com", "cboe.com",
+    "lseg.com", "jpx.co.jp", "hkex.com.hk", "krx.co.kr",
+]
+
+
 # ── 도구 ────────────────────────────────────────────────
 def build_search_tool() -> BaseTool:
     """뉴스 검색 도구.
@@ -49,6 +89,7 @@ def build_search_tool() -> BaseTool:
         topic="news",
         time_range="day",       # 오늘 기사만 — "오늘 것만 쓰라"는 규칙을 코드로 강제
         search_depth="advanced",
+        include_domains=SEARCH_DOMAINS,   # 입구에서 2차 사이트를 거른다
     )
 
     @tool

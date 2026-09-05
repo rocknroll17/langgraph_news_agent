@@ -3,14 +3,16 @@
 이 파일에는 '무엇을 어떤 순서로' 만 둔다. '어떻게' 는 nodes/<이름>/ 안에 있다.
 
     planner → search → refiner(기사별 병렬) → synthesizer → follow_up
-        → writer ⇄ read → checker → reviser → reporter → cleaner → END
+        → writer ⇄ read → checker → reviser(틀린 문장별 병렬) → assembler
+        → reporter → cleaner → END
 
-갈림길은 넷이다.
+갈림길은 다섯이다.
 
     planner      검색이 부족하면 재시도, 끝내 하나도 못 얻으면 reporter 로 직행
     synthesizer  1회차면 follow_up 으로, 2회차면 writer 로
     follow_up    추가 검색을 냈으면 search 로 되돌아가고, 없으면 writer 로
     writer       기사 조회를 요청했으면 read 로, 아니면 checker 로
+    checker      틀린 문장이 있으면 reviser 로 흩뿌리고, 없으면 바로 assembler 로
 """
 
 import os
@@ -22,6 +24,7 @@ from config import MAX_RETRY, MAX_ROUNDS, build_model, build_search_tool
 from nodes import (
     READ,
     SEARCH,
+    AssemblerNode,
     CheckerNode,
     CleanerNode,
     FollowUpNode,
@@ -39,7 +42,7 @@ from nodes import (
     wants_more,
 )
 from state import State
-from utils import Trace, articles, today_kst
+from utils import Trace, articles, sentences, today_kst
 
 
 def route(state: State) -> str:
@@ -80,6 +83,18 @@ def route_after_write(state: State) -> str:
     return READ if wants_articles(state) else CheckerNode.name
 
 
+def fan_out_revisers(state: State) -> list[Send] | str:
+    """CONTRADICTED 문장을 하나씩 reviser 로 흩뿌린다. 없으면 바로 조립한다."""
+    report = sentences.mark("\n".join(str(m.content) for m in state["report"]))
+    wrong = [v for v in state.get("verdicts") or [] if v["verdict"] == "CONTRADICTED"]
+    if not wrong:
+        return AssemblerNode.name
+    return [Send(ReviserNode.name, {
+        "sentence": v["sentence"], "report": report,
+        "correction": v["correction"], "evidence": v["evidence"],
+    }) for v in wrong]
+
+
 def build_graph(entry: str = PlannerNode.name, **compile_kwargs):
     """entry 는 개발용이다. 저장해 둔 상태로 중간 노드부터 이어 돌릴 때 쓴다."""
     model = build_model()
@@ -93,6 +108,7 @@ def build_graph(entry: str = PlannerNode.name, **compile_kwargs):
         WriterNode(model),
         CheckerNode(model),
         ReviserNode(model),
+        AssemblerNode(),
         ReporterNode(),
         CleanerNode(),
     ]
@@ -103,9 +119,11 @@ def build_graph(entry: str = PlannerNode.name, **compile_kwargs):
     for node in nodes:
         graph.add_node(node.name, node)
 
-    # refiner 는 기사별로 흩뿌려서 들어가는 노드라 진입 간선이 조건부다.
+    # refiner·reviser 는 Send 로 흩뿌려서 들어가는 노드라 진입 간선이 조건부다.
     if entry == RefinerNode.name:
         graph.add_conditional_edges(START, fan_out_refiners, [RefinerNode.name])
+    elif entry == ReviserNode.name:
+        graph.add_conditional_edges(START, fan_out_revisers, [ReviserNode.name, AssemblerNode.name])
     else:
         graph.add_edge(START, entry)
     graph.add_conditional_edges(
@@ -121,8 +139,11 @@ def build_graph(entry: str = PlannerNode.name, **compile_kwargs):
     )
     graph.add_conditional_edges(WriterNode.name, route_after_write, [READ, CheckerNode.name])
     graph.add_edge(READ, WriterNode.name)
-    graph.add_edge(CheckerNode.name, ReviserNode.name)
-    graph.add_edge(ReviserNode.name, ReporterNode.name)
+    graph.add_conditional_edges(
+        CheckerNode.name, fan_out_revisers, [ReviserNode.name, AssemblerNode.name]
+    )
+    graph.add_edge(ReviserNode.name, AssemblerNode.name)
+    graph.add_edge(AssemblerNode.name, ReporterNode.name)
     graph.add_edge(ReporterNode.name, CleanerNode.name)
     graph.add_edge(CleanerNode.name, END)
 

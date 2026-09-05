@@ -1,7 +1,11 @@
-"""refiner — 검색 결과 한 건에서 기사 본문만 남긴다.
+"""refiner — 검색 결과 한 건이 이번 리서치에 쓸 기사인지만 판정한다.
 
 Send 로 기사 수만큼 띄워 병렬 실행한다. 각 인스턴스는 기사 하나만 본다.
-입력이 작아서 빠르고, 출력이 정리돼 있어 뒤 단계가 전부 가벼워진다.
+
+본문은 손대지 않는다. Tavily 의 content 는 이미 본문만 발췌한 조각이라
+헤더·메뉴 같은 잡동사니가 없고, 모델이 문장을 고쳐 쓰면 수치가 틀어진다.
+잡음은 문장 안이 아니라 결과 단위(목록 페이지, 약관, 전망 블로그)로 들어오므로
+살릴지 버릴지만 정한다. 출력은 bool 하나 — 작은 모델이 가장 안정적으로 내는 형태다.
 """
 
 from pydantic import BaseModel, Field
@@ -15,8 +19,7 @@ from . import prompts
 
 
 class Refined(BaseModel):
-    relevant: bool = Field(description="금융 시장과 관련 있는 기사인지")
-    content: str = Field(default="", description="잡동사니를 걷어낸 기사 본문")
+    relevant: bool = Field(description="이번 리서치 주제에 쓸 수 있는 기사 본문인지")
 
 
 class RefinerInput(TypedDict):
@@ -47,16 +50,16 @@ class RefinerNode(LLMNode):
                 "content": state["content"],
             })
         except Exception as e:      # 한 건이 깨져도 나머지는 살린다
-            note("refiner", f"failed, keeping raw text — {type(e).__name__}")
-            out = Refined(relevant=True, content=state["content"])
+            note("refiner", f"failed, keeping article — {type(e).__name__}")
+            out = Refined(relevant=True)
 
-        if not out.relevant or not out.content.strip():
-            return {}               # 시장과 무관하면 버린다
+        if not out.relevant or not state["content"].strip():
+            return {}               # 주제와 무관하거나 빈 결과면 버린다
 
         return {"articles": [{
             "media": state["media"],
             "title": state["title"],
             "url": state["url"],
             "published": state["published"],
-            "content": out.content.strip(),
+            "content": state["content"],   # 원문 그대로. 수치가 변형될 경로를 남기지 않는다
         }]}

@@ -33,20 +33,27 @@ def to_sends(messages, date) -> list[dict]:
 
 
 def render(articles: list[dict], start: int = 1) -> str:
-    """프롬프트에 넣을 기사 본문. 번호는 회차를 넘어 이어진다."""
+    """프롬프트에 넣을 기사 본문. 번호는 회차를 넘어 이어진다.
+
+    발행일을 같이 준다. synthesizer 와 checker 의 "당일 자료가 아니면 버려라/틀렸다"
+    규칙은 이 줄이 있어야 작동한다.
+    """
     return "\n\n".join(
-        f"[{i}] 매체: {a['media']}\n    제목: {a['title']}\n"
+        f"[{i}] 매체: {a['media']}\n    제목: {a['title']}\n    발행: {a['published'] or '미상'}\n"
         f"    URL: {a['url']}\n    내용: {a['content']}"
         for i, a in enumerate(articles, start)
     )
 
 
 def media_name(url: str) -> str:
-    """도메인에서 읽기 좋은 매체명을 만든다. news.bbc.co.uk -> Bbc"""
+    """도메인에서 읽기 좋은 매체명을 만든다.
+    news.bbc.co.uk -> Bbc, businesstimes.com.sg -> Businesstimes
+    """
     host = urlparse(url).netloc.removeprefix("www.")
     if not host:
         return url
-    skip = {"com", "co", "net", "org", "kr", "uk", "ph", "io", "news"}
+    skip = {"com", "co", "net", "org", "gov", "news",          # 일반 접미사
+            "kr", "uk", "sg", "jp", "hk", "cn", "in", "tr"}    # 국가 코드
     parts = [p for p in host.split(".") if p not in skip]
     return (parts[-1] if parts else host.split(".")[0]).capitalize()
 

@@ -13,7 +13,7 @@
 
 ## Highlights
 
-- **Grounded output.** Every claim is decomposed and matched against the retrieved sources before publishing. Citations are attached only to claims the checker verified, and contradicted figures are replaced with the source value.
+- **Grounded output.** Every sentence is matched against the retrieved sources before publishing. The model only points at sentence and article numbers; code swaps in corrected sentences and attaches citations, so untouched sentences cannot change and URLs cannot be invented.
 - **Single-pass fan-out.** The planner emits all search queries in one turn and `ToolNode` runs them in parallel.
 - **Follow-up round.** A second pass targets whatever the first pass only mentioned in passing.
 - **On-demand sources.** The writer sees a claim outline plus an article index, and pulls full text only where it needs detail — keeping the prompt well inside the context window.
@@ -73,8 +73,10 @@ flowchart LR
     FU -->|done| W[writer]
     W <-->|read_articles| RD[read]
     W --> C[checker]
-    C --> R[reviser]
-    R --> RP[reporter]
+    C -->|contradicted sentences| R[reviser]
+    C -->|nothing to fix| A
+    R --> A[assembler]
+    A --> RP[reporter]
     RP --> CL[cleaner]
     CL --> E([END])
 ```
@@ -83,23 +85,24 @@ flowchart LR
 |:--|:--|:-:|
 | `planner` | Emits 4–6 search queries in a single turn | ● |
 | `search` | Fans the tool calls out in parallel via `ToolNode` | |
-| `refiner` | Strips page cruft from each article, one instance per result | ● |
+| `refiner` | Keeps or drops each result (article body on topic vs. listing/blog/off-topic), one instance per result; text is passed through untouched | ● |
 | `synthesizer` | Merges claims across sources and tags causal / contrastive links | ● |
 | `follow_up` | Reads the first pass and issues follow-up queries for gaps | ● |
 | `writer` | Drafts prose, pulling full articles on demand via `read_articles` | ● |
 | `read` | Serves the requested articles back to the writer | |
-| `checker` | Matches each claim against the source index and judges it | ● |
-| `reviser` | Applies minimal edits per verdict and inserts citations | ● |
+| `checker` | Judges each numbered sentence against the source index; points at sentence and article numbers only | ● |
+| `reviser` | Rewrites one contradicted sentence with the source value, one instance per sentence | ● |
+| `assembler` | Swaps in fixed sentences by number and attaches citations from the article list | |
 | `reporter` | Saves to file and posts to Discord | |
 | `cleaner` | Clears state for the next run | |
 
-Verdicts follow the three-way NLI convention and come back as a Pydantic-typed structured output.
+Verdicts follow the three-way NLI convention and come back as a Pydantic-typed structured output. Sentence boundaries are drawn by code (`utils/sentences.py`) and shown to the model as `⟦n⟧` markers; a verdict whose numbers do not exist, or whose correction is not literally in the quoted evidence, is dropped and the sentence stays as written.
 
-| Verdict | What `reviser` does |
+| Verdict | What happens |
 |:--|:--|
-| `SUPPORTED` | Insert citation |
-| `CONTRADICTED` | Replace the figure with the source value, then cite |
-| `NOT_ENOUGH_INFO` | Leave as is, no citation |
+| `SUPPORTED` | `assembler` attaches the citation |
+| `CONTRADICTED` | `reviser` rewrites that one sentence, then `assembler` swaps it in and cites |
+| `NOT_ENOUGH_INFO` | Left as is, no citation |
 
 ```
 [checker] 16 claims — supported 9 / contradicted 1 / unsupported 6

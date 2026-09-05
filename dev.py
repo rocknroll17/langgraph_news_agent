@@ -24,6 +24,7 @@ from langgraph.checkpoint.memory import MemorySaver
 
 import main
 from nodes import (
+    AssemblerNode,
     CheckerNode,
     FollowUpNode,
     RefinerNode,
@@ -38,7 +39,7 @@ STATE_DIR = Path(__file__).parent / ".dev_state"
 
 # 이어 돌리기 시작점으로 삼을 수 있는 노드들. 검색은 이미 끝난 셈 치고 refiner 부터다.
 NODES = [n.name for n in (RefinerNode, SynthesizerNode, FollowUpNode, WriterNode,
-                          CheckerNode, ReviserNode, ReporterNode)]
+                          CheckerNode, ReviserNode, AssemblerNode, ReporterNode)]
 
 
 def _path(node: str) -> Path:

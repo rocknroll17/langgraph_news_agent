@@ -34,6 +34,7 @@ class CleanerNode(Node):
             "draft": [RemoveMessage(id=REMOVE_ALL_MESSAGES)],
             "articles": None,   # collect 리듀서가 None 을 초기화로 해석한다
             "verdicts": [],
+            "fixes": None,
             "cited": "",
             "failed": False,
         }
