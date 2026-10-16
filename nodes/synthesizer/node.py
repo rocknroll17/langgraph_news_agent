@@ -10,7 +10,7 @@
 
 from nodes.base import LLMNode
 from state import State
-from utils import articles
+from utils import articles, note
 
 from . import prompts
 
@@ -25,11 +25,19 @@ class SynthesizerNode(LLMNode):
         consumed = state.get("consumed", 0)
         fresh = state["articles"][consumed:]        # 이번 회차분만
 
-        response = self.chain.invoke({
-            "date": state["date"],
-            "articles": articles.render(fresh, start=consumed + 1),
-            "prior": prompts.PRIOR.format(facts=prior) if prior else "",
-        })
+        try:
+            response = self.chain.invoke({
+                "date": state["date"],
+                "articles": articles.render(fresh, start=consumed + 1),
+                "prior": prompts.PRIOR.format(facts=prior) if prior else "",
+            })
+        except Exception as e:      # LLM 이 죽어도 이전 회차 사실은 살린다
+            note("synthesizer", f"failed, keeping prior facts — {type(e).__name__}")
+            return {
+                "facts": prior,
+                "rounds": rounds + 1,
+                "consumed": len(state["articles"]),
+            }
 
         new = str(response.content).strip()
         merged = f"{prior}\n\n{new}".strip() if prior else new
