@@ -12,6 +12,7 @@
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage
+from openai import APIError
 
 from config import MAX_READ_ROUNDS
 from nodes.base import Node
@@ -25,6 +26,14 @@ class WriterNode(Node):
 
     def __init__(self, model: BaseChatModel) -> None:
         self.model = model
+        # tool_choice 가 "auto"/"none" 두 가지뿐이라 미리 둘 다 바인딩해 재사용한다.
+        self._bound = {
+            choice: model.bind_tools([tools.read_articles], tool_choice=choice).with_retry(
+                retry_if_exception_type=(APIError,),
+                stop_after_attempt=3,
+            )
+            for choice in ("auto", "none")
+        }
 
     def run(self, state: State) -> dict:
         articles = state.get("articles") or []
@@ -38,10 +47,7 @@ class WriterNode(Node):
             "draft": history,
         }).to_messages()
 
-        model = self.model.bind_tools(
-            [tools.read_articles],
-            tool_choice="none" if _reads(history) >= MAX_READ_ROUNDS else "auto",
-        )
+        model = self._bound["none" if _reads(history) >= MAX_READ_ROUNDS else "auto"]
         draft = model.invoke(messages)
 
         if draft.tool_calls:

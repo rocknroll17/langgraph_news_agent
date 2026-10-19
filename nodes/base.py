@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.prompts import ChatPromptTemplate
+from openai import APIError
 
 from state import State
 
@@ -33,4 +34,9 @@ class LLMNode(Node):
 
     def __init__(self, model: BaseChatModel) -> None:
         self.model = model
-        self.chain = self.template | model
+        # 자체 호스팅 LLM 이라 과부하 시 502/504 로 죽곤 한다.
+        # 한 번 죽었다고 8분짜리 실행 전체를 날리지 않도록 여기서 재시도한다.
+        self.chain = (self.template | model).with_retry(
+            retry_if_exception_type=(APIError,),
+            stop_after_attempt=3,
+        )
